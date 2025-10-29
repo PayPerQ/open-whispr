@@ -228,30 +228,62 @@ class AudioManager {
   }
 
   async getAPIKey() {
-    if (this.cachedApiKey) {
+    // Determine which endpoint we're using
+    const endpoint = this.getTranscriptionEndpoint();
+    const isGroq = endpoint.includes("groq.com");
+    
+    // Check cache, but only if it matches the current endpoint type
+    const cacheKey = isGroq ? 'groq' : 'openai';
+    if (this.cachedApiKey && this.cachedApiKeyType === cacheKey) {
       return this.cachedApiKey;
     }
 
-    let apiKey = await window.electronAPI.getOpenAIKey();
-    if (
-      !apiKey ||
-      apiKey.trim() === "" ||
-      apiKey === "your_openai_api_key_here"
-    ) {
-      apiKey = localStorage.getItem("openaiApiKey");
-    }
+    let apiKey;
+    
+    if (isGroq) {
+      // Get Groq API key
+      apiKey = await window.electronAPI.getGroqKey();
+      if (
+        !apiKey ||
+        apiKey.trim() === "" ||
+        apiKey === "your_groq_api_key_here"
+      ) {
+        apiKey = localStorage.getItem("groqApiKey");
+      }
 
-    if (
-      !apiKey ||
-      apiKey.trim() === "" ||
-      apiKey === "your_openai_api_key_here"
-    ) {
-      throw new Error(
-        "OpenAI API key not found. Please set your API key in the .env file or Control Panel."
-      );
+      if (
+        !apiKey ||
+        apiKey.trim() === "" ||
+        apiKey === "your_groq_api_key_here"
+      ) {
+        throw new Error(
+          "Groq API key not found. Please set your API key in Settings."
+        );
+      }
+    } else {
+      // Get OpenAI API key
+      apiKey = await window.electronAPI.getOpenAIKey();
+      if (
+        !apiKey ||
+        apiKey.trim() === "" ||
+        apiKey === "your_openai_api_key_here"
+      ) {
+        apiKey = localStorage.getItem("openaiApiKey");
+      }
+
+      if (
+        !apiKey ||
+        apiKey.trim() === "" ||
+        apiKey === "your_openai_api_key_here"
+      ) {
+        throw new Error(
+          "OpenAI API key not found. Please set your API key in the .env file or Control Panel."
+        );
+      }
     }
 
     this.cachedApiKey = apiKey;
+    this.cachedApiKeyType = cacheKey;
     return apiKey;
   }
 
@@ -392,8 +424,6 @@ class AudioManager {
     try {
       const result = await ReasoningService.processText(text, model, agentName);
       
-      const processingTime = Date.now() - startTime;
-      
       debugLogger.logReasoning("REASONING_SERVICE_COMPLETE", {
         model,
         processingTimeMs: processingTime,
@@ -403,7 +433,6 @@ class AudioManager {
       
       return result;
     } catch (error) {
-      const processingTime = Date.now() - startTime;
       
       debugLogger.logReasoning("REASONING_SERVICE_ERROR", {
         model,
@@ -527,6 +556,8 @@ class AudioManager {
   }
 
   async processWithOpenAIAPI(audioBlob) {
+    const whisperStartTime = Date.now();
+    
     try {
       // Parallel: get API key (cached) and optimize audio
       const [apiKey, optimizedAudio] = await Promise.all([
