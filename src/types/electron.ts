@@ -256,6 +256,10 @@ declare global {
       getGeminiKey: () => Promise<string | null>;
       saveGeminiKey: (key: string) => Promise<void>;
       
+      // Groq API key management
+      getGroqKey: () => Promise<string | null>;
+      saveGroqKey: (key: string) => Promise<void>;
+      
       // Debug logging
       logReasoning?: (stage: string, details: any) => Promise<void>;
       
