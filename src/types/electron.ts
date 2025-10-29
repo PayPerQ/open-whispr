@@ -5,39 +5,6 @@ export interface TranscriptionItem {
   created_at: string;
 }
 
-export interface WhisperInstallResult {
-  success: boolean;
-  message: string;
-  output: string;
-}
-
-export interface WhisperCheckResult {
-  installed: boolean;
-  working: boolean;
-  error?: string;
-}
-
-export interface WhisperModelResult {
-  success: boolean;
-  model: string;
-  downloaded: boolean;
-  size_mb?: number;
-  error?: string;
-}
-
-export interface WhisperModelDeleteResult {
-  success: boolean;
-  model: string;
-  deleted: boolean;
-  freed_mb?: number;
-  error?: string;
-}
-
-export interface WhisperModelsListResult {
-  success: boolean;
-  models: Array<{ model: string; downloaded: boolean; size_mb?: number }>;
-  cache_dir: string;
-}
 
 export interface UpdateCheckResult {
   updateAvailable: boolean;
@@ -70,44 +37,10 @@ export interface AppVersionResult {
   version: string;
 }
 
-export interface WhisperDownloadProgressData {
-  type: string;
-  model: string;
-  percentage?: number;
-  downloaded_bytes?: number;
-  total_bytes?: number;
-  error?: string;
-  result?: any;
-}
-
-export interface WhisperInstallProgressData {
-  type: string;
-  message: string;
-  output?: string;
-}
-
-export interface PythonInstallation {
-  installed: boolean;
-  command?: string;
-  version?: number;
-}
-
-export interface PythonInstallResult {
-  success: boolean;
-  method: string;
-}
-
-export interface PythonInstallProgressData {
-  type: string;
-  stage: string;
-  percentage: number;
-}
 
 // Additional interface missing from preload.js
 export interface SaveSettings {
-  useLocalWhisper: boolean;
   apiKey: string;
-  whisperModel: string;
   hotkey: string;
 }
 
@@ -152,59 +85,9 @@ declare global {
         text?: string;
         error?: string;
       }>;
-
-      // Python operations
-      checkPythonInstallation: () => Promise<PythonInstallation>;
-      installPython: () => Promise<PythonInstallResult>;
-      onPythonInstallProgress: (
-        callback: (event: any, data: PythonInstallProgressData) => void
-      ) => void;
-
-      // Whisper operations
-      transcribeLocalWhisper: (
-        audioBlob: Blob | ArrayBuffer,
-        options?: any
-      ) => Promise<any>;
-      checkWhisperInstallation: () => Promise<WhisperCheckResult>;
-      installWhisper: () => Promise<WhisperInstallResult>;
-      onWhisperInstallProgress: (
-        callback: (event: any, data: WhisperInstallProgressData) => void
-      ) => void;
-      downloadWhisperModel: (modelName: string) => Promise<WhisperModelResult>;
-      onWhisperDownloadProgress: (
-        callback: (event: any, data: WhisperDownloadProgressData) => void
-      ) => void;
-      checkModelStatus: (modelName: string) => Promise<WhisperModelResult>;
-      listWhisperModels: () => Promise<WhisperModelsListResult>;
-      deleteWhisperModel: (
-        modelName: string
-      ) => Promise<WhisperModelDeleteResult>;
-      cancelWhisperDownload: () => Promise<{
-        success: boolean;
-        message?: string;
-        error?: string;
-      }>;
-
-      // Local AI model management
-      modelGetAll: () => Promise<any[]>;
-      modelCheck: (modelId: string) => Promise<boolean>;
-      modelDownload: (modelId: string) => Promise<void>;
-      modelDelete: (modelId: string) => Promise<void>;
-      modelDeleteAll: () => Promise<{ success: boolean; error?: string; code?: string }>;
-      modelCheckRuntime: () => Promise<boolean>;
-      onModelDownloadProgress: (callback: (event: any, data: any) => void) => void;
-      
-      // Local reasoning
-      processLocalReasoning: (text: string, modelId: string, agentName: string | null, config: any) => Promise<{ success: boolean; text?: string; error?: string }>;
-      checkLocalReasoningAvailable: () => Promise<boolean>;
       
       // Anthropic reasoning
       processAnthropicReasoning: (text: string, modelId: string, agentName: string | null, config: any) => Promise<{ success: boolean; text?: string; error?: string }>;
-      
-      // llama.cpp management
-      llamaCppCheck: () => Promise<{ isInstalled: boolean; version?: string }>;
-      llamaCppInstall: () => Promise<{ success: boolean; error?: string }>;
-      llamaCppUninstall: () => Promise<{ success: boolean; error?: string }>;
 
       // Window control operations
       windowMinimize: () => Promise<void>;
@@ -250,7 +133,7 @@ declare global {
       removeAllListeners: (channel: string) => void;
 
       // Hotkey management
-      updateHotkey: (key: string) => Promise<void>;
+      updateHotkey: (key: string) => Promise<{ success: boolean; message?: string }>;
       
       // Gemini API key management
       getGeminiKey: () => Promise<string | null>;
@@ -262,9 +145,6 @@ declare global {
       
       // Debug logging
       logReasoning?: (stage: string, details: any) => Promise<void>;
-      
-      // FFmpeg availability
-      checkFFmpegAvailability: () => Promise<boolean>;
     };
     
     api?: {

@@ -2,14 +2,11 @@ import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { RefreshCw, Download, Keyboard, Mic, Shield } from "lucide-react";
-import WhisperModelPicker from "./WhisperModelPicker";
-import ProcessingModeSelector from "./ui/ProcessingModeSelector";
 import ApiKeyInput from "./ui/ApiKeyInput";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useSettings } from "../hooks/useSettings";
 import { useDialogs } from "../hooks/useDialogs";
 import { useAgentName } from "../utils/agentName";
-import { useWhisper } from "../hooks/useWhisper";
 import { usePermissions } from "../hooks/usePermissions";
 import { useClipboard } from "../hooks/useClipboard";
 import { REASONING_PROVIDERS } from "../utils/languages";
@@ -109,7 +106,6 @@ export default function SettingsPage({
     !updateStatus.isDevelopment &&
     (updateStatus.updateAvailable || updateStatus.updateDownloaded);
 
-  const whisperHook = useWhisper(showAlertDialog);
   const permissionsHook = usePermissions(showAlertDialog);
   const { pasteFromClipboardWithFallback } = useClipboard(showAlertDialog);
   const { agentName, setAgentName } = useAgentName();
@@ -206,11 +202,6 @@ export default function SettingsPage({
       }
 
       subscribeToUpdates();
-
-      // Check whisper after initial render
-      if (mounted) {
-        whisperHook.checkWhisperInstallation();
-      }
     }, 100);
 
     return () => {
@@ -225,7 +216,7 @@ export default function SettingsPage({
         window.electronAPI.removeAllListeners?.("update-download-progress");
       }
     };
-  }, [whisperHook, subscribeToUpdates]);
+  }, [subscribeToUpdates]);
 
   useEffect(() => {
     if (installInitiated) {
@@ -430,55 +421,11 @@ export default function SettingsPage({
       console.error("Failed to update hotkey:", error);
       showAlertDialog({
         title: "Error",
-        description: `Failed to update hotkey: ${error.message}`,
+        description: `Failed to update hotkey: ${(error as Error).message}`,
       });
     }
   };
 
-  const handleRemoveModels = useCallback(() => {
-    if (isRemovingModels) return;
-
-    showConfirmDialog({
-      title: "Remove downloaded models?",
-      description:
-        `This deletes all locally cached Whisper models (${cachePathHint}) and frees disk space. You can download them again from the model picker.`,
-      confirmText: "Delete Models",
-      variant: "destructive",
-      onConfirm: () => {
-        setIsRemovingModels(true);
-        window.electronAPI
-          ?.modelDeleteAll?.()
-          .then((result) => {
-            if (!result?.success) {
-              showAlertDialog({
-                title: "Unable to Remove Models",
-                description:
-                  result?.error ||
-                  "Something went wrong while deleting the cached models.",
-              });
-              return;
-            }
-
-            window.dispatchEvent(new Event("openwhispr-models-cleared"));
-
-            showAlertDialog({
-              title: "Models Removed",
-              description:
-                "All downloaded Whisper models were deleted. You can re-download any model from the picker when needed.",
-            });
-          })
-          .catch((error) => {
-            showAlertDialog({
-              title: "Unable to Remove Models",
-              description: error?.message || "An unknown error occurred.",
-            });
-          })
-          .finally(() => {
-            setIsRemovingModels(false);
-          });
-      },
-    });
-  }, [isRemovingModels, cachePathHint, showConfirmDialog, showAlertDialog]);
 
   const renderSectionContent = () => {
     switch (activeSection) {
@@ -583,11 +530,11 @@ export default function SettingsPage({
                         setUpdateDownloadProgress(0);
                         try {
                           await window.electronAPI?.downloadUpdate();
-                        } catch (error: any) {
+                        } catch (error) {
                           setDownloadingUpdate(false);
                           showAlertDialog({
                             title: "Download Failed",
-                            description: `Failed to download update: ${error.message}`,
+                            description: `Failed to download update: ${(error as Error).message}`,
                           });
                         }
                       }}
@@ -889,23 +836,6 @@ export default function SettingsPage({
                 </Button>
               </div>
 
-              <div className="space-y-3 mt-6 p-4 bg-rose-50 border border-rose-200 rounded-xl">
-                <h4 className="font-medium text-rose-900">Local Model Storage</h4>
-                <p className="text-sm text-rose-800">
-                  Remove all downloaded Whisper models from your cache directory to reclaim disk space. You can re-download any model later.
-                </p>
-                <Button
-                  variant="destructive"
-                  onClick={handleRemoveModels}
-                  disabled={isRemovingModels}
-                  className="w-full"
-                >
-                  {isRemovingModels ? "Removing models..." : "Remove Downloaded Models"}
-                </Button>
-                <p className="text-xs text-rose-700">
-                  Current cache location: <code>{cachePathHint}</code>
-                </p>
-              </div>
             </div>
           </div>
         );
@@ -915,115 +845,86 @@ export default function SettingsPage({
           <div className="space-y-6">
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Speech to Text Processing
+                Cloud Transcription Settings
               </h3>
-              <ProcessingModeSelector
-                useLocalWhisper={useLocalWhisper}
-                setUseLocalWhisper={(value) => {
-                  setUseLocalWhisper(value);
-                  updateTranscriptionSettings({ useLocalWhisper: value });
-                }}
-              />
+              <p className="text-sm text-gray-600 mb-6">
+                Configure your OpenAI-compatible cloud transcription service.
+              </p>
             </div>
 
-            {!useLocalWhisper && (
-              <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                <h4 className="font-medium text-blue-900">OpenAI-Compatible Cloud Setup</h4>
-                <ApiKeyInput
-                  apiKey={openaiApiKey}
-                  setApiKey={setOpenaiApiKey}
-                  helpText="Supports OpenAI or compatible endpoints"
+            <div className="space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+              <h4 className="font-medium text-blue-900">OpenAI-Compatible Cloud Setup</h4>
+              <ApiKeyInput
+                apiKey={openaiApiKey}
+                setApiKey={setOpenaiApiKey}
+                helpText="Supports OpenAI or compatible endpoints"
+              />
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-blue-900">
+                  Custom Base URL (optional)
+                </label>
+                <Input
+                  value={cloudTranscriptionBaseUrl}
+                  onChange={(event) => setCloudTranscriptionBaseUrl(event.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                  className="text-sm"
                 />
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-blue-900">
-                    Custom Base URL (optional)
-                  </label>
-                  <Input
-                    value={cloudTranscriptionBaseUrl}
-                    onChange={(event) => setCloudTranscriptionBaseUrl(event.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                    className="text-sm"
-                  />
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCloudTranscriptionBaseUrl(API_ENDPOINTS.TRANSCRIPTION_BASE)}
-                    >
-                      Reset to Default
-                    </Button>
-                  </div>
-                  <p className="text-xs text-blue-800">
-                    Requests for cloud transcription use this OpenAI-compatible base URL. Leave empty to fall back to
-                    <code className="ml-1">{API_ENDPOINTS.TRANSCRIPTION_BASE}</code>.
-                  </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCloudTranscriptionBaseUrl(API_ENDPOINTS.TRANSCRIPTION_BASE)}
+                  >
+                    Reset to Default
+                  </Button>
                 </div>
+                <p className="text-xs text-blue-800">
+                  Requests for cloud transcription use this OpenAI-compatible base URL. Leave empty to fall back to
+                  <code className="ml-1">{API_ENDPOINTS.TRANSCRIPTION_BASE}</code>.
+                </p>
               </div>
-            )}
+            </div>
 
-            {useLocalWhisper && whisperHook.whisperInstalled && (
-            <div className="space-y-4 p-4 bg-purple-50 border border-purple-200 rounded-xl">
-              <h4 className="font-medium text-purple-900">
-                Local Whisper Model
-              </h4>
-              <WhisperModelPicker
-                selectedModel={whisperModel}
-                onModelSelect={setWhisperModel}
-                variant="settings"
+            <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
+              <h4 className="font-medium text-gray-900">Preferred Language</h4>
+              <LanguageSelector
+                value={preferredLanguage}
+                onChange={(value) => {
+                  setPreferredLanguage(value);
+                  updateTranscriptionSettings({ preferredLanguage: value });
+                }}
+                className="w-full"
               />
             </div>
-          )}
 
-          <div className="space-y-4 p-4 bg-gray-50 border border-gray-200 rounded-xl">
-            <h4 className="font-medium text-gray-900">Preferred Language</h4>
-            <LanguageSelector
-              value={preferredLanguage}
-              onChange={(value) => {
-                setPreferredLanguage(value);
-                updateTranscriptionSettings({ preferredLanguage: value });
+            <Button
+              onClick={() => {
+                const normalizedTranscriptionBase = (cloudTranscriptionBaseUrl || '').trim();
+                setCloudTranscriptionBaseUrl(normalizedTranscriptionBase);
+
+                updateTranscriptionSettings({
+                  preferredLanguage,
+                  cloudTranscriptionBaseUrl: normalizedTranscriptionBase,
+                });
+
+                if (openaiApiKey.trim()) {
+                  updateApiKeys({ openaiApiKey });
+                }
+
+                const baseLabel = normalizedTranscriptionBase || API_ENDPOINTS.TRANSCRIPTION_BASE;
+
+                showAlertDialog({
+                  title: "Settings Saved",
+                  description: `Cloud transcription configured. Language: ${preferredLanguage}. Endpoint: ${baseLabel}.`,
+                });
               }}
               className="w-full"
-            />
+            >
+              Save Transcription Settings
+            </Button>
           </div>
-
-          <Button
-            onClick={() => {
-              const normalizedTranscriptionBase = (cloudTranscriptionBaseUrl || '').trim();
-              setCloudTranscriptionBaseUrl(normalizedTranscriptionBase);
-
-              updateTranscriptionSettings({
-                useLocalWhisper,
-                whisperModel,
-                preferredLanguage,
-                cloudTranscriptionBaseUrl: normalizedTranscriptionBase,
-              });
-
-              if (!useLocalWhisper && openaiApiKey.trim()) {
-                updateApiKeys({ openaiApiKey });
-              }
-
-              const descriptionParts = [
-                `Transcription mode: ${useLocalWhisper ? 'Local Whisper' : 'Cloud'}.`,
-                `Language: ${preferredLanguage}.`,
-              ];
-
-              if (!useLocalWhisper) {
-                const baseLabel = normalizedTranscriptionBase || API_ENDPOINTS.TRANSCRIPTION_BASE;
-                descriptionParts.push(`Endpoint: ${baseLabel}.`);
-              }
-
-              showAlertDialog({
-                title: "Settings Saved",
-                description: descriptionParts.join(' '),
-              });
-            }}
-            className="w-full"
-          >
-            Save Transcription Settings
-          </Button>
-        </div>
-      );
+        );
 
       case "aiModels":
         return (

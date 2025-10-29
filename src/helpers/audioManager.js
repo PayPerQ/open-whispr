@@ -111,18 +111,7 @@ class AudioManager {
 
   async processAudio(audioBlob) {
     try {
-      // Get user preferences
-      const useLocalWhisper =
-        localStorage.getItem("useLocalWhisper") === "true";
-      const whisperModel = localStorage.getItem("whisperModel") || "base";
-      
-
-      let result;
-      if (useLocalWhisper) {
-        result = await this.processWithLocalWhisper(audioBlob, whisperModel);
-      } else {
-        result = await this.processWithOpenAIAPI(audioBlob);
-      }
+      const result = await this.processWithOpenAIAPI(audioBlob);
       this.onTranscriptionComplete?.(result);
     } catch (error) {
       // Don't show error here if it's "No audio detected" - already shown elsewhere
@@ -154,77 +143,6 @@ class AudioManager {
   static cleanTranscriptionForAPI(text) {
     // Minimal cleanup - only normalize spaces for API processing
     return TextCleanup.normalizeSpaces(text);
-  }
-
-  async processWithLocalWhisper(audioBlob, model = "base") {
-    
-    // Analyze audio levels first
-    const audioAnalysis = await this.analyzeAudioLevels(audioBlob);
-    if (audioAnalysis && audioAnalysis.isSilent) {
-      // Show error to user immediately
-      this.onError?.({
-        title: "No Audio Detected",
-        description: "The recording appears to be silent. Please check that your microphone is working and not muted.",
-      });
-      // Still continue to try transcription in case analysis was wrong
-    }
-    
-    try {
-      const arrayBuffer = await audioBlob.arrayBuffer();
-
-      // Get language preference for local Whisper
-      const language = localStorage.getItem("preferredLanguage");
-      const options = { model };
-      if (language && language !== "auto") {
-        options.language = language;
-      }
-
-      const result = await window.electronAPI.transcribeLocalWhisper(
-        arrayBuffer,
-        options
-      );
-      
-
-      if (result.success && result.text) {
-        const text = await this.processTranscription(result.text, "local");
-        // Allow empty strings as valid responses (reasoning service might return cleaned empty text)
-        if (text !== null && text !== undefined) {
-          return { success: true, text: text || result.text, source: "local" };
-        } else {
-          throw new Error("No text transcribed");
-        }
-      } else if (
-        result.success === false &&
-        result.message === "No audio detected"
-      ) {
-        // Show specific error to user with more details
-        this.onError?.({
-          title: "No Audio Detected",
-          description: "The recording contained no detectable audio. Please check your microphone settings.",
-        });
-        throw new Error("No audio detected");
-      } else {
-        throw new Error(result.error || "Local Whisper transcription failed");
-      }
-    } catch (error) {
-      if (error.message === "No audio detected") {
-        throw error;
-      }
-
-      const allowOpenAIFallback = localStorage.getItem("allowOpenAIFallback") === "true";
-      const isLocalMode = localStorage.getItem("useLocalWhisper") === "true";
-
-      if (allowOpenAIFallback && isLocalMode) {
-        try {
-          const fallbackResult = await this.processWithOpenAIAPI(audioBlob);
-          return { ...fallbackResult, source: "openai-fallback" };
-        } catch (fallbackError) {
-          throw new Error(`Local Whisper failed: ${error.message}. OpenAI fallback also failed: ${fallbackError.message}`);
-        }
-      } else {
-        throw new Error(`Local Whisper failed: ${error.message}`);
-      }
-    }
   }
 
   async getAPIKey() {
@@ -485,7 +403,7 @@ class AudioManager {
     return false;
   }
 
-  async processTranscription(text, source) {
+  async processTranscription(text, source = "openai") {
     
     // Log incoming transcription
     debugLogger.logReasoning("TRANSCRIPTION_RECEIVED", {
@@ -601,45 +519,6 @@ class AudioManager {
         throw new Error("No text transcribed");
       }
     } catch (error) {
-
-      // Try fallback to Local Whisper ONLY if enabled AND we're in OpenAI mode
-      const allowLocalFallback =
-        localStorage.getItem("allowLocalFallback") === "true";
-      const isOpenAIMode = localStorage.getItem("useLocalWhisper") !== "true";
-
-      if (allowLocalFallback && isOpenAIMode) {
-        const fallbackModel =
-          localStorage.getItem("fallbackWhisperModel") || "base";
-        try {
-          const arrayBuffer = await audioBlob.arrayBuffer();
-
-          // Get language preference for fallback as well
-          const language = localStorage.getItem("preferredLanguage");
-          const options = { model: fallbackModel };
-          if (language && language !== "auto") {
-            options.language = language;
-          }
-
-          const result = await window.electronAPI.transcribeLocalWhisper(
-            arrayBuffer,
-            options
-          );
-
-          if (result.success && result.text) {
-            const text = await this.processTranscription(result.text, "local-fallback");
-            if (text) {
-              return { success: true, text, source: "local-fallback" };
-            }
-          }
-          // If local fallback fails, throw the original OpenAI error
-          throw error;
-        } catch (fallbackError) {
-          throw new Error(
-            `OpenAI API failed: ${error.message}. Local fallback also failed: ${fallbackError.message}`
-          );
-        }
-      }
-
       throw error;
     }
   }

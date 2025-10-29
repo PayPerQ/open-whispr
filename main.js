@@ -26,7 +26,6 @@ const EnvironmentManager = require("./src/helpers/environment");
 const WindowManager = require("./src/helpers/windowManager");
 const DatabaseManager = require("./src/helpers/database");
 const ClipboardManager = require("./src/helpers/clipboard");
-const WhisperManager = require("./src/helpers/whisper");
 const TrayManager = require("./src/helpers/tray");
 const IPCHandlers = require("./src/helpers/ipcHandlers");
 const UpdateManager = require("./src/updater");
@@ -65,7 +64,6 @@ const windowManager = new WindowManager();
 const hotkeyManager = windowManager.hotkeyManager;
 const databaseManager = new DatabaseManager();
 const clipboardManager = new ClipboardManager();
-const whisperManager = new WhisperManager();
 const trayManager = new TrayManager();
 const updateManager = new UpdateManager();
 const globeKeyManager = new GlobeKeyManager();
@@ -103,7 +101,6 @@ const ipcHandlers = new IPCHandlers({
   environmentManager,
   databaseManager,
   clipboardManager,
-  whisperManager,
   windowManager,
 });
 
@@ -120,11 +117,6 @@ async function startApp() {
     // Prevent dock from hiding when windows use setVisibleOnAllWorkspaces
     app.setActivationPolicy('regular');
   }
-
-  // Initialize Whisper manager at startup (don't await to avoid blocking)
-  whisperManager.initializeAtStartup().catch((err) => {
-    // Whisper not being available at startup is not critical
-  });
 
   // Create main window
   try {

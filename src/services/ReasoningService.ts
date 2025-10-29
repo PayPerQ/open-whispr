@@ -521,47 +521,10 @@ class ReasoningService extends BaseReasoningService {
     agentName: string | null = null,
     config: ReasoningConfig = {}
   ): Promise<string> {
-    debugLogger.logReasoning("LOCAL_START", {
-      model,
-      agentName,
-      environment: typeof window !== 'undefined' ? 'browser' : 'node'
+    debugLogger.logReasoning("LOCAL_UNAVAILABLE", {
+      reason: 'Local processing has been removed'
     });
-    
-    // Instead of importing directly, we'll use IPC to communicate with main process
-    // For local models, we need to use IPC to communicate with the main process
-    if (typeof window !== 'undefined' && window.electronAPI) {
-      const startTime = Date.now();
-      
-      debugLogger.logReasoning("LOCAL_IPC_CALL", {
-        model,
-        textLength: text.length
-      });
-      
-      const result = await window.electronAPI.processLocalReasoning(text, model, agentName, config);
-      
-      const processingTime = Date.now() - startTime;
-      
-      if (result.success) {
-        debugLogger.logReasoning("LOCAL_SUCCESS", {
-          model,
-          processingTimeMs: processingTime,
-          resultLength: result.text.length
-        });
-        return result.text;
-      } else {
-        debugLogger.logReasoning("LOCAL_ERROR", {
-          model,
-          processingTimeMs: processingTime,
-          error: result.error
-        });
-        throw new Error(result.error);
-      }
-    } else {
-      debugLogger.logReasoning("LOCAL_UNAVAILABLE", {
-        reason: 'Not in Electron environment'
-      });
-      throw new Error('Local reasoning is not available in this environment');
-    }
+    throw new Error('Local reasoning is not available - local processing has been removed from this application');
   }
 
   private async processWithGemini(
@@ -885,24 +848,22 @@ class ReasoningService extends BaseReasoningService {
 
   async isAvailable(): Promise<boolean> {
     try {
-      // Check if we have at least one configured API key or local model available
+      // Check if we have at least one configured API key
       const openaiKey = await window.electronAPI?.getOpenAIKey?.();
       const anthropicKey = await window.electronAPI?.getAnthropicKey?.();
       const geminiKey = await window.electronAPI?.getGeminiKey?.();
-      const localAvailable = await window.electronAPI?.checkLocalReasoningAvailable?.();
       
       debugLogger.logReasoning("API_KEY_CHECK", {
         hasOpenAI: !!openaiKey,
         hasAnthropic: !!anthropicKey,
         hasGemini: !!geminiKey,
-        hasLocal: !!localAvailable,
         openAIKeyLength: openaiKey?.length || 0,
         anthropicKeyLength: anthropicKey?.length || 0,
         geminiKeyLength: geminiKey?.length || 0,
         geminiKeyPreview: geminiKey ? `${geminiKey.substring(0, 8)}...` : 'none'
       });
       
-      return !!(openaiKey || anthropicKey || geminiKey || localAvailable);
+      return !!(openaiKey || anthropicKey || geminiKey);
     } catch (error) {
       debugLogger.logReasoning("API_KEY_CHECK_ERROR", {
         error: (error as Error).message,
